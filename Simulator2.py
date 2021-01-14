@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import collections
 
 HEIGHT = 170
-FITNESS = 2
+FITNESS = 5
 T = 110
+MANUAL_WEIGHT = 180
 
 
 class Simulator2:
@@ -24,7 +25,8 @@ class Simulator2:
         self.lateralAngle   = None
         self.linealAngle    = None
 
-        self.history = {} # epoch : array of probs
+        self.probHistory = {} # epoch : array of probs
+        self.paramsHistory = {} # epoch : [param : val]
 
     def simulate(self):
         for epoch in range(SIMULATION_EPOCHS):
@@ -33,8 +35,73 @@ class Simulator2:
 
         #self.plotAvgHistory()
         self.plotFailinPoints()
+        #self.plotParamEvolutions()
 
     """---PLOTTING---"""
+
+    def plotParamEvolutions(self):
+        size = 40
+        plot_params = {
+                'legend.fontsize' : 'large',
+                'figure.figsize'  : (20, 8),
+                'axes.labelsize'  : size * 1.2,
+                'axes.titlesize'  : size * 1.7,
+                'xtick.labelsize' : size * 1.2,
+                'ytick.labelsize' : size * 1.2,
+                'axes.titlepad'   : 25,
+                'lines.markersize': size
+        }
+        plt.rcParams.update (plot_params)
+        colors = ["#264653", "#e76f51", "#2a9d8f", "#e9c46a", "#f4a261"]
+        red = "#FF0000"
+
+        avgParamEvolution = self._extractAvgParamsEvolution()
+
+        c = 0
+        for (param, evol) in avgParamEvolution.items():
+            fig, ax = plt.subplots(1, figsize=(25, 13))
+
+            x = list(range(1, len(evol) + 1))
+
+            ax.scatter(x, evol, c=colors[c % len(colors)])
+            c += 1
+            """
+            minGood, maxGood = self.__getGoodRange(param=param)
+            y_minGood = [minGood for _ in range(1, len(evol) + 1)]
+            y_maxGood = [maxGood for _ in range(1, len(evol) + 1)]
+
+            ax.plot(y_minGood, c=red, lw=5)
+            ax.plot(y_maxGood, c=red, lw=5)
+            """
+            #ax.set_xlim([0, T-1])
+            #plt.xticks(np.arange(1, len(evol) + 1, 5))
+            ax.set_title("Avg {} evol in {} epochs, Model 2\nl={}, h={}, w={}".format (param, SIMULATION_EPOCHS, FITNESS, HEIGHT, MANUAL_WEIGHT))
+            ax.set_xlabel("t")
+            ax.set_ylabel("Avg value")
+
+            fig.show()
+
+    def __getGoodRange(self, param):
+        if param == "Extra weight":
+            return 0, 10 * FITNESS
+        if param == "Energy level":
+            return 0.1, 1
+        if param == "Step size":
+            return 0.45 * HEIGHT, 0.65 * HEIGHT
+        if param == "Foot angle":
+            return -60, 60
+        if param == "Lateral angle":
+            w_max_p = 105 * FITNESS
+            a_min = -12*pi * sqrt(self.extraWeight / w_max_p)
+            a_max = -1 * a_min
+            return a_min, a_max
+        if param == "Lineal angle":
+            w_max_p = 105 * FITNESS
+            b_min = -12 * pi * sqrt (self.extraWeight / w_max_p)
+            b_max = -1 * b_min
+            return b_min, b_max
+        if param == "Probability":
+            return 0, 1
 
     def plotFailinPoints(self):
         size = 40
@@ -54,13 +121,11 @@ class Simulator2:
         fig, ax = plt.subplots (1, figsize=(25, 13))
 
         failingPoints = self.__computeFailingPoints()
-        print(self.history)
-        print("---")
         print(failingPoints)
 
         ax.bar(failingPoints.keys(), failingPoints.values(), width=0.8, color=colors)
         plt.xticks(np.arange(1, T+1, 5))
-        ax.set_title("Failing points, {} epochs, Model 2\nl={}, h={}".format (SIMULATION_EPOCHS, FITNESS, HEIGHT))
+        ax.set_title("Failing points, {} epochs, Model 2\nl={}, h={}, w={}".format (SIMULATION_EPOCHS, FITNESS, HEIGHT, MANUAL_WEIGHT))
         ax.set_xlabel("t")
         ax.set_ylabel("Fail frequency")
 
@@ -95,10 +160,56 @@ class Simulator2:
 
         fig.show()
 
+    def _extractAvgParamsEvolution(self):
+        """
+        :return: {t : {param : avg value}} --> {param : [avg values]}
+        """
+        avgParamEvolutionPerStep = self._computeAvgParamEvolution ()
+        avgParamEvolution = {}
+
+        for (t, avgParams) in avgParamEvolutionPerStep.items ():
+            for (param, avgValue) in avgParams.items ():
+
+                if not (param in avgParamEvolution):
+                    avgParamEvolution[param] = []
+
+                avgParamEvolution[param].append (avgValue)
+
+        return avgParamEvolution
+
+    def _computeAvgParamEvolution(self):
+
+        paramEvolution = {}
+
+        for (epoch, setParams) in self.paramsHistory.items():
+            for t in range(len(setParams)):
+
+                if not (t in paramEvolution):
+                    paramEvolution[t] = {}
+
+                for (param, value) in setParams[t].items():
+
+                    if param in paramEvolution[t]:
+                        paramEvolution[t][param].append(value)
+                    else:
+                        paramEvolution[t][param] = [value]
+
+        avgParamEvolution = {}
+
+        for (t, params) in paramEvolution.items():
+
+            if not (t in avgParamEvolution):
+                avgParamEvolution[t] = {}
+
+            for (param, values) in paramEvolution[t].items():
+                avgParamEvolution[t][param] = mean(values)
+
+        return avgParamEvolution
+
     def __computeFailingPoints(self):
         fails = np.zeros(shape=T)
 
-        for (_, probs) in self.history.items():
+        for (_, probs) in self.probHistory.items():
             if 0.0 in probs:
                 fails[probs.index(0.0)] += 1
 
@@ -117,7 +228,7 @@ class Simulator2:
     def __computeStepHistory(self):
         stepHistory = np.zeros(shape=(T, SIMULATION_EPOCHS))
 
-        for (epoch, probs) in self.history.items ():
+        for (epoch, probs) in self.probHistory.items ():
             for i in range(T):
                 stepHistory[i][epoch] = probs[i]
 
@@ -126,10 +237,13 @@ class Simulator2:
     """---SIMULATING---"""
 
     def _setupEpoch(self):
-        self.extraWeight = self._updateExtraWeight()
+        self.extraWeight = self._updateExtraWeight() if (MANUAL_WEIGHT == None) else MANUAL_WEIGHT
 
     def _performLunges(self, epoch):
         successProbabilities = []
+        parameterValues = []
+        failed = False
+
         for currStep in range(T):
             self.stepCount      = currStep
             self.energyLevel    = self._updateEnergyLevel()
@@ -140,16 +254,29 @@ class Simulator2:
 
             successProbability  = self._computeSuccessProbability()
             successProbabilities.append(successProbability)
-            #self.printValues()
+
+            currParameterValues = self.__getCurrParameterValues(probability=successProbability)
+            parameterValues.append(currParameterValues)
 
             if successProbability == 0.0:
-                currLen = len(successProbabilities)
-                for _ in range(T-currLen):
-                    successProbabilities.append(0.0)
-                self.history[epoch] = successProbabilities
-                return
+                l = T - len(successProbabilities)
+                successProbabilities += [0 for _ in range(l)]
+                break
 
-        self.history[epoch] = successProbabilities
+        self.probHistory[epoch] = successProbabilities
+        self.paramsHistory[epoch] = parameterValues
+
+    def __getCurrParameterValues(self, probability):
+        currParameterValues = {
+                "Extra weight"  : self.extraWeight,
+                "Energy level"  : self.energyLevel,
+                "Step size"     : self.stepSize,
+                "Foot angle"    : self.footAngle,
+                "Lateral angle" : self.lateralAngle,
+                "Lineal angle"  : self.linealAngle,
+                "Probability"   : probability
+        }
+        return  currParameterValues
 
     """---PROBABILITIES---"""
 
