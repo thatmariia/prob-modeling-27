@@ -1,6 +1,9 @@
 from enum import IntEnum, Enum
 
-SIMULATION_EPOCHS = 10000
+SIMULATION_EPOCHS = 100000
+MODEL = 2
+
+"""--- MODEL 1 ---"""
 
 class StepSize(IntEnum):
     """
@@ -15,12 +18,31 @@ class LateralAngle(IntEnum):
     """
     Minimum and maximum lateral angle in degrees
     """
-    GOOD_MIN        = -30
-    GOOD_MAX        =  30
+    GOOD_MIN        = -45
+    GOOD_MAX        =  45
     POSSIBLE_MIN    = -180
     POSSIBLE_MAX    =  180
 
-class Outcome(Enum):
+class LinealAngle(IntEnum):
+    """
+    Minimum and maximum lateral angle in degrees
+    """
+    GOOD_MIN        = -45
+    GOOD_MAX        =  45
+    POSSIBLE_MIN    = -180
+    POSSIBLE_MAX    =  180
+
+class FootAngle(IntEnum):
+    """
+    Minimum and maximum lateral angle in degrees
+    """
+    GOOD_MIN        = -20
+    GOOD_MAX        =  20
+    POSSIBLE_MIN    = -120
+    POSSIBLE_MAX    =  120
+
+
+class Outcome1(Enum):
     FAIL            = "FAIL"
     SUCCESS         = "SUCCESS"
     P1              = "P1"
